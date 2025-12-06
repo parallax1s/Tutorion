@@ -6,26 +6,6 @@ import { z } from 'zod';
 
 const widgetHtml = readFileSync('public/tutor-widget.html', 'utf8');
 
-const MCP_RESOURCE_BASE_URL =
-  process.env.MCP_RESOURCE_BASE_URL || 'https://example.tutorion.app';
-const MCP_AUTHORIZATION_SERVER =
-  process.env.MCP_AUTHORIZATION_SERVER || 'https://auth.example.com';
-const MCP_SCOPES = (process.env.MCP_SCOPES || 'materials:read materials:write')
-  .split(/\s+/)
-  .filter(Boolean);
-const MCP_REQUIRE_AUTH = process.env.MCP_REQUIRE_AUTH === 'true';
-const RESOURCE_METADATA_PATH = '/.well-known/oauth-protected-resource';
-
-const resourceMetadata = () => ({
-  resource: MCP_RESOURCE_BASE_URL,
-  authorization_servers: [MCP_AUTHORIZATION_SERVER],
-  scopes_supported: MCP_SCOPES,
-  resource_documentation: 'https://example.tutorion.app/docs/mcp',
-});
-
-const buildWwwAuthenticate = (scope) =>
-  `Bearer resource_metadata="${MCP_RESOURCE_BASE_URL}${RESOURCE_METADATA_PATH}", scope="${scope}"`;
-
 const ingestSchema = {
   title: z.string().min(1, 'Title is required'),
   text: z.string().min(40, 'Please provide at least a few sentences'),
@@ -125,10 +105,6 @@ function createTutorServer() {
       title: 'Add study material',
       description: 'Store pasted lecture text or extracted PDF content.',
       inputSchema: ingestSchema,
-      securitySchemes: [
-        { type: 'noauth' },
-        { type: 'oauth2', scopes: MCP_SCOPES },
-      ],
       _meta: {
         'openai/outputTemplate': 'ui://widget/tutor.html',
         'openai/toolInvocation/invoking': 'Uploading material',
@@ -156,10 +132,6 @@ function createTutorServer() {
       title: 'Extract topics',
       description: 'Break materials into ordered topics for practice.',
       inputSchema: {},
-      securitySchemes: [
-        { type: 'noauth' },
-        { type: 'oauth2', scopes: MCP_SCOPES },
-      ],
       _meta: {
         'openai/outputTemplate': 'ui://widget/tutor.html',
         'openai/toolInvocation/invoking': 'Extracting topics',
@@ -182,10 +154,6 @@ function createTutorServer() {
       title: 'Generate quiz',
       description: 'Create quiz questions for a topic id.',
       inputSchema: generateQuizSchema,
-      securitySchemes: [
-        { type: 'noauth' },
-        { type: 'oauth2', scopes: MCP_SCOPES },
-      ],
       _meta: {
         'openai/outputTemplate': 'ui://widget/tutor.html',
         'openai/toolInvocation/invoking': 'Assembling quiz',
@@ -224,12 +192,6 @@ const httpServer = createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
 
-  if (req.method === 'GET' && url.pathname === RESOURCE_METADATA_PATH) {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(resourceMetadata()));
-    return;
-  }
-
   if (req.method === 'OPTIONS' && url.pathname === MCP_PATH) {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
@@ -248,23 +210,6 @@ const httpServer = createServer(async (req, res) => {
 
   const MCP_METHODS = new Set(['POST', 'GET', 'DELETE']);
   if (url.pathname === MCP_PATH && req.method && MCP_METHODS.has(req.method)) {
-    if (MCP_REQUIRE_AUTH) {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
-        res.writeHead(401, {
-          'WWW-Authenticate': buildWwwAuthenticate(MCP_SCOPES[0] || 'materials:read'),
-          'content-type': 'application/json',
-        });
-        res.end(
-          JSON.stringify({
-            error: 'missing_token',
-            error_description: 'Authentication required: no access token provided.',
-          }),
-        );
-        return;
-      }
-    }
-
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 
