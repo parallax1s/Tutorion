@@ -1,0 +1,244 @@
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { z } from 'zod';
+
+const widgetHtml = readFileSync('public/tutor-widget.html', 'utf8');
+
+const ingestSchema = {
+  title: z.string().min(1, 'Title is required'),
+  text: z.string().min(40, 'Please provide at least a few sentences'),
+};
+
+const generateQuizSchema = {
+  topicId: z.string().min(1, 'Topic id is required'),
+  difficulty: z.enum(['intro', 'intermediate', 'advanced']).default('intro'),
+};
+
+let materials = [];
+let topics = [];
+let quiz = null;
+let nextId = 1;
+
+const resetQuizIfMissingTopic = () => {
+  if (quiz && !topics.find((t) => t.id === quiz.topicId)) {
+    quiz = null;
+  }
+};
+
+const deriveTopicsFromMaterial = (material) => {
+  const sentences = material.text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 20)
+    .slice(0, 4);
+
+  if (!sentences.length) {
+    return [
+      {
+        id: `topic-${nextId++}`,
+        title: `${material.title} overview`,
+        rationale: 'High-level summary of the uploaded material.',
+        sourceTitle: material.title,
+      },
+    ];
+  }
+
+  return sentences.map((sentence, index) => ({
+    id: `topic-${nextId++}`,
+    title: `${material.title} – Concept ${index + 1}`,
+    rationale: sentence,
+    sourceTitle: material.title,
+  }));
+};
+
+const buildQuizForTopic = (topic, difficulty) => {
+  const prompts = [
+    `Explain the first principle behind ${topic.title}.`,
+    `Show a worked example related to ${topic.title}.`,
+    `How does ${topic.title} connect to a prerequisite concept?`,
+  ];
+
+  return {
+    topicId: topic.id,
+    questions: prompts.map((prompt, index) => ({
+      id: `q-${nextId++}`,
+      prompt,
+      answer: index === 1
+        ? 'Start from the given definition and solve step-by-step to the final expression.'
+        : 'Highlight assumptions and the key step that changes the outcome.',
+      difficulty,
+    })),
+  };
+};
+
+const structuredState = (message) => ({
+  message,
+  materials,
+  topics,
+  quiz,
+});
+
+function createTutorServer() {
+  const server = new McpServer({ name: 'tutorion', version: '0.2.0' });
+
+  server.registerResource(
+    'tutor-widget',
+    'ui://widget/tutor.html',
+    {},
+    async () => ({
+      contents: [
+        {
+          uri: 'ui://widget/tutor.html',
+          mimeType: 'text/html+skybridge',
+          text: widgetHtml,
+          _meta: { 'openai/widgetPrefersBorder': true },
+        },
+      ],
+    }),
+  );
+
+  server.registerTool(
+    'ingest_material',
+    {
+      title: 'Add study material',
+      description: 'Store pasted lecture text or extracted PDF content.',
+      inputSchema: ingestSchema,
+      _meta: {
+        'openai/outputTemplate': 'ui://widget/tutor.html',
+        'openai/toolInvocation/invoking': 'Uploading material',
+        'openai/toolInvocation/invoked': 'Material uploaded',
+      },
+    },
+    async (args) => {
+      const title = args?.title?.trim?.() ?? '';
+      const text = args?.text?.trim?.() ?? '';
+      if (!title || !text) {
+        return { content: [{ type: 'text', text: 'Missing title or text.' }], structuredContent: structuredState('Missing inputs') };
+      }
+      const material = { id: `material-${nextId++}`, title, text, characters: text.length };
+      materials = [...materials, material];
+      return {
+        content: [{ type: 'text', text: `Stored “${title}”.` }],
+        structuredContent: structuredState('Material captured'),
+      };
+    },
+  );
+
+  server.registerTool(
+    'extract_topics',
+    {
+      title: 'Extract topics',
+      description: 'Break materials into ordered topics for practice.',
+      inputSchema: {},
+      _meta: {
+        'openai/outputTemplate': 'ui://widget/tutor.html',
+        'openai/toolInvocation/invoking': 'Extracting topics',
+        'openai/toolInvocation/invoked': 'Topics ready',
+      },
+    },
+    async () => {
+      topics = materials.flatMap(deriveTopicsFromMaterial);
+      resetQuizIfMissingTopic();
+      return {
+        content: [{ type: 'text', text: `Generated ${topics.length} topic(s).` }],
+        structuredContent: structuredState('Topics generated'),
+      };
+    },
+  );
+
+  server.registerTool(
+    'generate_quiz',
+    {
+      title: 'Generate quiz',
+      description: 'Create quiz questions for a topic id.',
+      inputSchema: generateQuizSchema,
+      _meta: {
+        'openai/outputTemplate': 'ui://widget/tutor.html',
+        'openai/toolInvocation/invoking': 'Assembling quiz',
+        'openai/toolInvocation/invoked': 'Quiz ready',
+      },
+    },
+    async (args) => {
+      const topicId = args?.topicId;
+      const difficulty = args?.difficulty ?? 'intro';
+      const topic = topics.find((entry) => entry.id === topicId);
+      if (!topic) {
+        return {
+          content: [{ type: 'text', text: 'Topic not found. Generate topics first.' }],
+          structuredContent: structuredState('Topic missing'),
+        };
+      }
+      quiz = buildQuizForTopic(topic, difficulty);
+      return {
+        content: [{ type: 'text', text: `Quiz prepared for ${topic.title}.` }],
+        structuredContent: structuredState('Quiz ready'),
+      };
+    },
+  );
+
+  return server;
+}
+
+const port = Number(process.env.PORT ?? 8787);
+const MCP_PATH = '/mcp';
+
+const httpServer = createServer(async (req, res) => {
+  if (!req.url) {
+    res.writeHead(400).end('Missing URL');
+    return;
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
+
+  if (req.method === 'OPTIONS' && url.pathname === MCP_PATH) {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'content-type, mcp-session-id',
+      'Access-Control-Expose-Headers': 'Mcp-Session-Id',
+    });
+    res.end();
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/') {
+    res.writeHead(200, { 'content-type': 'text/plain' }).end('Tutorion MCP server');
+    return;
+  }
+
+  const MCP_METHODS = new Set(['POST', 'GET', 'DELETE']);
+  if (url.pathname === MCP_PATH && req.method && MCP_METHODS.has(req.method)) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+
+    const server = createTutorServer();
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    });
+
+    res.on('close', () => {
+      transport.close();
+      server.close();
+    });
+
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res);
+    } catch (error) {
+      console.error('Error handling MCP request:', error);
+      if (!res.headersSent) {
+        res.writeHead(500).end('Internal server error');
+      }
+    }
+    return;
+  }
+
+  res.writeHead(404).end('Not Found');
+});
+
+httpServer.listen(port, () => {
+  console.log(`Tutorion MCP server listening on http://localhost:${port}${MCP_PATH}`);
+});
