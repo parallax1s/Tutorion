@@ -26,7 +26,7 @@ class QuizQuestion:
 
 
 class TutorModel:
-    def __init__(self, *, api_key: str | None = None, model: str = "gpt-4.1-mini"):
+    def __init__(self, *, api_key: str | None = None, model: str = "gpt-5-mini"):
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
