@@ -24,7 +24,7 @@ def _get_model(api_key: Optional[str], model: str) -> TutorModel:
 def topics(
     path: Path = typer.Argument(..., exists=True, readable=True),
     output: Path = typer.Option(Path("output/topics.json"), help="Where to save topic outlines."),
-    model: str = typer.Option("gpt-4.1-mini", help="OpenAI model to use."),
+    model: str = typer.Option("gpt-5-mini", help="OpenAI model to use."),
     max_chars: int = typer.Option(1200, help="Chunk size when reading PDFs."),
     api_key: Optional[str] = typer.Option(None, help="OpenAI API key; defaults to env var."),
 ):
@@ -41,7 +41,7 @@ def quiz(
     topics_file: Path = typer.Argument(..., exists=True, readable=True),
     output: Path = typer.Option(Path("output/quiz.json"), help="Where to save quiz questions."),
     difficulty: str = typer.Option("intro", help="Difficulty label sent to the model."),
-    model: str = typer.Option("gpt-4.1-mini", help="OpenAI model to use."),
+    model: str = typer.Option("gpt-5-mini", help="OpenAI model to use."),
     api_key: Optional[str] = typer.Option(None, help="OpenAI API key; defaults to env var."),
 ):
     """Generate quiz questions for the first topic in a saved topics file."""
