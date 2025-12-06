@@ -55,3 +55,13 @@ Both commands default to `gpt-5-mini` but you can change the `--model` flag to a
    Add the public URL suffixed with `/mcp` (e.g., `https://<subdomain>.ngrok.app/mcp`) as a connector in ChatGPT, then open a conversation and pick the Tutorion widget.
 
 The widget supports local previews when `window.openai` is unavailable, but when loaded through ChatGPT it will stay in sync with tool responses via `window.openai.callTool` and `window.openai.toolOutput`.
+
+## Deploying the widget to Vercel
+Vercel can host the static widget, but the MCP server should run elsewhere (e.g., a small VM, Fly.io, or a tunnel like ngrok) because it needs a long-lived `/mcp` endpoint with streaming responses.
+
+1. Add the included `vercel.json` to your project root (it tells Vercel to publish everything under `/public` as static files and route `/` to the widget).
+2. Push the repo to GitHub and create a new Vercel project pointing at this repository.
+3. When prompted for the root directory, keep it at `/` (the config handles the static output).
+4. Deploy. Vercel will serve the widget at the project URL (e.g., `https://<project>.vercel.app/`).
+
+To use the widget with ChatGPT, point ChatGPT at your MCP server's public `/mcp` URL (from ngrok or your host). The widget will render inside ChatGPT using `window.openai.callTool` to reach that MCP server.
