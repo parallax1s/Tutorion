@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tutorion Study Companion</title>
+    <style>
+      :root {
+        color: #0b0b0f;
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #f7f8fc;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 18px;
+      }
+
+      main {
+        width: 100%;
+        max-width: 980px;
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(12, 20, 38, 0.08);
+        display: grid;
+        gap: 16px;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.35rem;
+      }
+
+      .pill {
+        border-radius: 999px;
+        background: #eef1fb;
+        color: #3147ff;
+        padding: 6px 12px;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 14px;
+      }
+
+      section {
+        background: #f9fbff;
+        border: 1px solid #e4e8f4;
+        border-radius: 14px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      section h2 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      label {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+
+      input,
+      textarea,
+      select,
+      button {
+        font-family: inherit;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid #cfd6e7;
+        padding: 10px 12px;
+        background: #fff;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      button {
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #111bf5, #2c6cf8);
+        color: white;
+        padding: 10px 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease;
+        box-shadow: 0 10px 18px rgba(44, 108, 248, 0.22);
+      }
+
+      button:disabled {
+        background: #adb7d9;
+        box-shadow: none;
+        cursor: not-allowed;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 22px rgba(44, 108, 248, 0.28);
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #e4e8f4;
+        border-radius: 12px;
+        padding: 10px 12px;
+      }
+
+      .topic-card {
+        border-left: 4px solid #111bf5;
+        cursor: pointer;
+        transition: background 120ms ease, border-color 120ms ease;
+      }
+
+      .topic-card[data-active="true"] {
+        background: #eef2ff;
+        border-color: #2c6cf8;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #eef1fb;
+        color: #1b2f90;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 0.8rem;
+      }
+
+      .muted {
+        color: #55627a;
+        font-size: 0.95rem;
+      }
+
+      .question {
+        border-left: 4px solid #2c6cf8;
+        padding-left: 12px;
+      }
+
+      details summary {
+        cursor: pointer;
+      }
+
+      .status {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.95rem;
+        color: #2c3b6f;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Tutorion</h1>
+          <p class="muted">Upload notes, extract topics, and drill quizzes.</p>
+        </div>
+        <span class="pill">Math &amp; Science first</span>
+      </header>
+
+      <section id="ingestion">
+        <div class="row" style="justify-content: space-between">
+          <h2>1) Paste or upload material</h2>
+          <button id="ingest-btn">Send to Tutor</button>
+        </div>
+        <label for="material-title">Title</label>
+        <input
+          id="material-title"
+          name="title"
+          placeholder="Statistical Physics – Problem Set 1"
+        />
+        <label for="material-text">Content</label>
+        <textarea
+          id="material-text"
+          name="text"
+          placeholder="Paste notes or a quick summary of the PDF..."
+        ></textarea>
+        <p class="muted">
+          Attachments are handled by the host UI. In ChatGPT this component
+          receives file extracts as text via <code>structuredContent</code> and
+          streams updates from tool calls.
+        </p>
+      </section>
+
+      <div class="grid">
+        <section id="topics">
+          <div class="row" style="justify-content: space-between">
+            <h2>2) Extract topics</h2>
+            <button id="topics-btn">Generate topics</button>
+          </div>
+          <ul id="topic-list" class="list"></ul>
+          <p class="muted" id="topic-hint">No topics yet. Send material first.</p>
+        </section>
+
+        <section id="quiz">
+          <div class="row" style="justify-content: space-between">
+            <h2>3) Quiz for the selected topic</h2>
+            <select id="difficulty">
+              <option value="intro">Intro</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+            <button id="quiz-btn">Build quiz</button>
+          </div>
+          <div id="quiz-body" class="list"></div>
+          <p class="muted" id="quiz-hint">Pick a topic to get started.</p>
+        </section>
+      </div>
+
+      <div class="status" id="status-bar">
+        <span id="status-text">Waiting for input...</span>
+        <span class="badge" id="material-count">0 materials</span>
+      </div>
+    </main>
+
+    <script type="module">
+      const state = {
+        materials: [],
+        topics: [],
+        quiz: null,
+        activeTopicId: null,
+      };
+
+      const selectors = {
+        ingestBtn: document.querySelector('#ingest-btn'),
+        topicsBtn: document.querySelector('#topics-btn'),
+        quizBtn: document.querySelector('#quiz-btn'),
+        title: document.querySelector('#material-title'),
+        text: document.querySelector('#material-text'),
+        topicList: document.querySelector('#topic-list'),
+        topicHint: document.querySelector('#topic-hint'),
+        quizHint: document.querySelector('#quiz-hint'),
+        quizBody: document.querySelector('#quiz-body'),
+        difficulty: document.querySelector('#difficulty'),
+        statusText: document.querySelector('#status-text'),
+        materialCount: document.querySelector('#material-count'),
+      };
+
+      const shorten = (text, limit = 120) =>
+        text.length > limit ? `${text.slice(0, limit)}…` : text;
+
+      const renderStatus = (message) => {
+        selectors.statusText.textContent = message;
+        selectors.materialCount.textContent = `${state.materials.length} material${state.materials.length === 1 ? '' : 's'}`;
+      };
+
+      const renderTopics = () => {
+        selectors.topicList.innerHTML = '';
+        if (!state.topics.length) {
+          selectors.topicHint.style.display = 'block';
+          return;
+        }
+        selectors.topicHint.style.display = 'none';
+        state.topics.forEach((topic) => {
+          const li = document.createElement('li');
+          li.className = 'card topic-card';
+          li.dataset.id = topic.id;
+          li.dataset.active = String(topic.id === state.activeTopicId);
+
+          const title = document.createElement('div');
+          title.style.fontWeight = '700';
+          title.textContent = topic.title;
+
+          const rationale = document.createElement('p');
+          rationale.className = 'muted';
+          rationale.textContent = shorten(topic.rationale ?? '', 200);
+
+          const source = document.createElement('span');
+          source.className = 'badge';
+          source.textContent = topic.sourceTitle ?? 'Uploaded';
+
+          li.appendChild(title);
+          li.appendChild(rationale);
+          li.appendChild(source);
+          li.addEventListener('click', () => {
+            state.activeTopicId = topic.id;
+            renderTopics();
+            renderQuiz();
+          });
+
+          selectors.topicList.appendChild(li);
+        });
+      };
+
+      const renderQuiz = () => {
+        selectors.quizBody.innerHTML = '';
+        const quiz = state.quiz;
+        if (!quiz || !quiz.questions?.length || quiz.topicId !== state.activeTopicId) {
+          selectors.quizHint.style.display = 'block';
+          return;
+        }
+        selectors.quizHint.style.display = 'none';
+
+        quiz.questions.forEach((q) => {
+          const card = document.createElement('div');
+          card.className = 'card question';
+
+          const prompt = document.createElement('div');
+          prompt.style.fontWeight = '700';
+          prompt.textContent = q.prompt;
+
+          const detail = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = 'Show answer';
+          const answer = document.createElement('p');
+          answer.className = 'muted';
+          answer.textContent = q.answer ?? 'No answer provided yet.';
+          detail.appendChild(summary);
+          detail.appendChild(answer);
+
+          const difficulty = document.createElement('span');
+          difficulty.className = 'badge';
+          difficulty.textContent = (q.difficulty ?? 'intro').toUpperCase();
+
+          card.appendChild(prompt);
+          card.appendChild(detail);
+          card.appendChild(difficulty);
+          selectors.quizBody.appendChild(card);
+        });
+      };
+
+      const applyStructuredContent = (structuredContent) => {
+        if (!structuredContent) return;
+        if (Array.isArray(structuredContent.materials)) state.materials = structuredContent.materials;
+        if (Array.isArray(structuredContent.topics)) state.topics = structuredContent.topics;
+        if (structuredContent.quiz) state.quiz = structuredContent.quiz;
+        if (state.topics.length && !state.activeTopicId) {
+          state.activeTopicId = state.topics[0]?.id ?? null;
+        }
+        renderStatus(structuredContent.message ?? 'Ready');
+        renderTopics();
+        renderQuiz();
+      };
+
+      const updateFromResponse = (response) => {
+        if (response?.structuredContent) {
+          applyStructuredContent(response.structuredContent);
+        }
+      };
+
+      const handleSetGlobals = (event) => {
+        const globals = event.detail?.globals;
+        if (!globals?.toolOutput) return;
+        applyStructuredContent(globals.toolOutput);
+      };
+
+      window.addEventListener('openai:set_globals', handleSetGlobals, {
+        passive: true,
+      });
+
+      const localMutations = async (name, payload) => {
+        if (name === 'ingest_material') {
+          const id = crypto.randomUUID();
+          state.materials = [
+            ...state.materials,
+            { id, title: payload.title, characters: payload.text.length },
+          ];
+          renderStatus('Material staged (local preview).');
+        }
+
+        if (name === 'extract_topics') {
+          const topics = state.materials.flatMap((material, index) => {
+            const base = material.title || `Material ${index + 1}`;
+            return [
+              { id: crypto.randomUUID(), title: `${base}: Foundations`, rationale: 'Key definitions and assumptions.', sourceTitle: material.title },
+              { id: crypto.randomUUID(), title: `${base}: Worked Examples`, rationale: 'Step-by-step derivations.', sourceTitle: material.title },
+            ];
+          });
+          state.topics = topics;
+          state.activeTopicId = topics[0]?.id ?? null;
+          renderStatus('Topics drafted locally.');
+        }
+
+        if (name === 'generate_quiz' && state.activeTopicId) {
+          state.quiz = {
+            topicId: state.activeTopicId,
+            questions: [
+              {
+                id: crypto.randomUUID(),
+                prompt: 'Walk through the first derivation step.',
+                answer: 'Differentiate the partition function with respect to β.',
+                difficulty: payload.difficulty ?? 'intro',
+              },
+              {
+                id: crypto.randomUUID(),
+                prompt: 'Check the limiting case as T → ∞.',
+                answer: 'The distribution flattens and energy levels equalize.',
+                difficulty: payload.difficulty ?? 'intro',
+              },
+            ],
+          };
+          renderStatus('Quiz preview ready.');
+        }
+        renderTopics();
+        renderQuiz();
+      };
+
+      const callTutorTool = async (name, payload) => {
+        if (window.openai?.callTool) {
+          const response = await window.openai.callTool(name, payload);
+          updateFromResponse(response);
+          return;
+        }
+        await localMutations(name, payload);
+      };
+
+      selectors.ingestBtn.addEventListener('click', async () => {
+        const title = selectors.title.value.trim();
+        const text = selectors.text.value.trim();
+        if (!title || text.length < 40) {
+          renderStatus('Please add a title and at least a few sentences.');
+          return;
+        }
+        renderStatus('Sending material…');
+        await callTutorTool('ingest_material', { title, text });
+        selectors.text.value = '';
+      });
+
+      selectors.topicsBtn.addEventListener('click', async () => {
+        if (!state.materials.length) {
+          renderStatus('Add material first.');
+          return;
+        }
+        renderStatus('Extracting topics…');
+        await callTutorTool('extract_topics', {});
+      });
+
+      selectors.quizBtn.addEventListener('click', async () => {
+        if (!state.activeTopicId) {
+          renderStatus('Pick a topic before requesting a quiz.');
+          return;
+        }
+        renderStatus('Building quiz…');
+        await callTutorTool('generate_quiz', {
+          topicId: state.activeTopicId,
+          difficulty: selectors.difficulty.value,
+        });
+      });
+
+      // Hydrate from initial tool output if present
+      applyStructuredContent(window.openai?.toolOutput);
+      renderTopics();
+      renderQuiz();
+    </script>
+  </body>
+</html>
