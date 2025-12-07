@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
@@ -13,7 +15,51 @@ export const MCP_REQUIRE_AUTH = process.env.MCP_REQUIRE_AUTH === 'true';
 export const MCP_PATH = '/mcp';
 export const RESOURCE_METADATA_PATH = '/.well-known/oauth-protected-resource';
 
-const widgetHtml = readFileSync('public/tutor-widget.html', 'utf8');
+const loadWidgetHtml = () => {
+  const defaultWidgetHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tutorion widget missing</title>
+    <style>
+      body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; }
+      main { max-width: 720px; margin: 0 auto; }
+      h1 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+      p { margin: 0; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Tutor widget unavailable</h1>
+      <p>The expected <code>public/tutor-widget.html</code> file could not be loaded. Please redeploy with the widget asset bundled.</p>
+    </main>
+  </body>
+</html>`;
+
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const candidatePaths = [
+    path.join(process.cwd(), 'public', 'tutor-widget.html'),
+    path.join(moduleDir, '..', 'public', 'tutor-widget.html'),
+  ];
+
+  for (const candidate of candidatePaths) {
+    try {
+      return readFileSync(candidate, 'utf8');
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        continue;
+      }
+      console.error(`Failed to load tutor widget from ${candidate}:`, error);
+      return defaultWidgetHtml;
+    }
+  }
+
+  console.warn('Tutor widget HTML missing; using inline fallback.');
+  return defaultWidgetHtml;
+};
+
+const widgetHtml = loadWidgetHtml();
 
 export const resourceMetadata = () => ({
   resource: MCP_RESOURCE_BASE_URL,
