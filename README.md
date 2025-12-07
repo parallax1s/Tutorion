@@ -75,7 +75,7 @@ You can now choose either (a) **static widget hosting only** or (b) **full MCP s
 2. Deploy normally to Vercel; your MCP endpoint will be `https://<project>.vercel.app/api/mcp`.
 3. OAuth resource metadata is served from `https://<project>.vercel.app/.well-known/oauth-protected-resource` (reuses the same env vars as the standalone server).
 4. Keep using `npm start` for local testing; the Vercel function path is additive.
-5. The Vercel build expects a published `mcp-handler` version; the repo pins `mcp-handler@^0.1.6` because `0.1.7` is not available on npm.
+5. The Vercel build expects a published `mcp-handler` version; the repo pins `mcp-handler@^1.0.4` (latest npm release).
 
 Pick the path that fits your environment—both deployments share the same widget and tool definitions.
 
