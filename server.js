@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+// Server wiring lives in mcp/serverFactory so both this standalone entrypoint
+// and the Vercel function (api/mcp.js) stay in sync.
 import {
   MCP_PATH,
   MCP_REQUIRE_AUTH,

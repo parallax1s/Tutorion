@@ -31,6 +31,12 @@ An experiment for turning lecture PDFs, exam sheets, and exercise sets into stru
 
 Both commands default to `gpt-5-mini` but you can change the `--model` flag to any compatible model. The `--difficulty` flag on `quiz` lets you request introductory, intermediate, or advanced practice.
 
+> Merge tip: `server.js` now delegates to `mcp/serverFactory.js` (shared with the Vercel function in `api/mcp.js`). If you hit merge conflicts, prefer keeping the factory-based imports and avoid reintroducing the old inline server/tool definitions.
+
+### Server entrypoints to keep
+- **Standalone (local):** `server.js` should import from `mcp/serverFactory.js` and expose `/mcp`, `/` (health), and the OAuth metadata route. If you see conflict markers that try to re-add inline tool definitions, discard them in favor of the factory imports.
+- **Vercel Function:** `api/mcp.js` uses the same factory via `configureTutorServer`. Keeping both files pointed at the shared factory prevents drift between the local and Vercel MCP paths.
+
 ## Notes
 - PDF ingestion uses `pypdf` to chunk pages into ~1200-character spans to keep prompts focused.
 - Saved topics include short context excerpts to keep quiz generation grounded in the uploaded material.
@@ -69,6 +75,7 @@ You can now choose either (a) **static widget hosting only** or (b) **full MCP s
 2. Deploy normally to Vercel; your MCP endpoint will be `https://<project>.vercel.app/api/mcp`.
 3. OAuth resource metadata is served from `https://<project>.vercel.app/.well-known/oauth-protected-resource` (reuses the same env vars as the standalone server).
 4. Keep using `npm start` for local testing; the Vercel function path is additive.
+5. The Vercel build expects a published `mcp-handler` version; the repo pins `mcp-handler@^0.1.6` because `0.1.7` is not available on npm.
 
 Pick the path that fits your environment—both deployments share the same widget and tool definitions.
 
