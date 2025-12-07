@@ -1,4 +1,16 @@
 import { createServer } from 'node:http';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {
+  MCP_PATH,
+  MCP_REQUIRE_AUTH,
+  MCP_SCOPES,
+  RESOURCE_METADATA_PATH,
+  buildWwwAuthenticate,
+  createTutorServer,
+  resourceMetadata,
+} from './mcp/serverFactory.js';
+
+const port = Number(process.env.PORT ?? 8787);
 import { readFileSync } from 'node:fs';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';

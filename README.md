@@ -56,15 +56,21 @@ Both commands default to `gpt-5-mini` but you can change the `--model` flag to a
 
 The widget supports local previews when `window.openai` is unavailable, but when loaded through ChatGPT it will stay in sync with tool responses via `window.openai.callTool` and `window.openai.toolOutput`.
 
-## Deploying the widget to Vercel
-Vercel can host the static widget, but the MCP server should run elsewhere (e.g., a small VM, Fly.io, or a tunnel like ngrok) because it needs a long-lived `/mcp` endpoint with streaming responses.
+## Deploying to Vercel
 
-1. Add the included `vercel.json` to your project root (it tells Vercel to publish everything under `/public` as static files and route `/` to the widget).
-2. Push the repo to GitHub and create a new Vercel project pointing at this repository.
-3. When prompted for the root directory, keep it at `/` (the config handles the static output).
-4. Deploy. Vercel will serve the widget at the project URL (e.g., `https://<project>.vercel.app/`).
+You can now choose either (a) **static widget hosting only** or (b) **full MCP server on Vercel Functions**. Both paths are supported without breaking local `node server.js` usage.
 
-To use the widget with ChatGPT, point ChatGPT at your MCP server's public `/mcp` URL (from ngrok or your host). The widget will render inside ChatGPT using `window.openai.callTool` to reach that MCP server.
+### Option A: Static widget only (MCP hosted elsewhere)
+1. Deploy with the included `vercel.json` (publishes everything under `/public` and routes `/` to the widget).
+2. Point ChatGPT at your own `/mcp` endpoint (e.g., ngrok, Fly.io, VM). The widget calls that external MCP.
+
+### Option B: MCP server on Vercel Functions
+1. The new `api/mcp.js` route wraps the same tools/resources via `mcp-handler`.
+2. Deploy normally to Vercel; your MCP endpoint will be `https://<project>.vercel.app/api/mcp`.
+3. OAuth resource metadata is served from `https://<project>.vercel.app/.well-known/oauth-protected-resource` (reuses the same env vars as the standalone server).
+4. Keep using `npm start` for local testing; the Vercel function path is additive.
+
+Pick the path that fits your environment—both deployments share the same widget and tool definitions.
 
 ## Enabling OAuth for protected tools
 The MCP server now exposes OAuth metadata for ChatGPT so you can gate tool usage behind your identity provider.
