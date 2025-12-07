@@ -29,7 +29,7 @@ An experiment for turning lecture PDFs, exam sheets, and exercise sets into stru
    python -m tutorion.app quiz output/topics.json --output output/quiz.json
    ```
 
-Both commands default to `gpt-4.1-mini` but you can change the `--model` flag to any compatible model. The `--difficulty` flag on `quiz` lets you request introductory, intermediate, or advanced practice.
+Both commands default to `gpt-5-mini` but you can change the `--model` flag to any compatible model. The `--difficulty` flag on `quiz` lets you request introductory, intermediate, or advanced practice.
 
 ## Notes
 - PDF ingestion uses `pypdf` to chunk pages into ~1200-character spans to keep prompts focused.
