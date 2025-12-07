@@ -205,39 +205,43 @@
       <header>
         <div>
           <h1>Tutorion</h1>
-          <p class="muted">Upload notes, extract topics, and drill quizzes.</p>
+          <p class="muted">Auto-ingest from ChatGPT, add notes on demand, drill mathy quizzes.</p>
         </div>
         <span class="pill">Math &amp; Science first</span>
       </header>
 
       <section id="ingestion">
         <div class="row" style="justify-content: space-between">
-          <h2>1) Paste or upload material</h2>
-          <button id="ingest-btn">Send to Tutor</button>
+          <h2>1) Material</h2>
+          <div class="row" style="gap: 8px">
+            <button id="toggle-inputs">Add notes</button>
+            <button id="ingest-btn">Send to Tutor</button>
+          </div>
         </div>
-        <label for="material-title">Title</label>
-        <input
-          id="material-title"
-          name="title"
-          placeholder="Statistical Physics – Problem Set 1"
-        />
-        <label for="material-text">Content</label>
-        <textarea
-          id="material-text"
-          name="text"
-          placeholder="Paste notes or a quick summary of the PDF..."
-        ></textarea>
+        <div id="manual-inputs" style="display: none">
+          <label for="material-title">Title</label>
+          <input
+            id="material-title"
+            name="title"
+            placeholder="Statistical Physics – Problem Set 1"
+          />
+          <label for="material-text">Content</label>
+          <textarea
+            id="material-text"
+            name="text"
+            placeholder="Paste notes or a quick summary of the PDF..."
+          ></textarea>
+        </div>
         <p class="muted">
-          Attachments are handled by the host UI. In ChatGPT this component
-          receives file extracts as text via <code>structuredContent</code> and
-          streams updates from tool calls.
+          Files are uploaded through ChatGPT. Click <strong>Add notes</strong>
+          only when you want to append manual text before sending to Tutorion.
         </p>
       </section>
 
       <div class="grid">
         <section id="topics">
           <div class="row" style="justify-content: space-between">
-            <h2>2) Extract topics</h2>
+            <h2>2) Extract math topics</h2>
             <button id="topics-btn">Generate topics</button>
           </div>
           <ul id="topic-list" class="list"></ul>
@@ -271,6 +275,7 @@
         topics: [],
         quiz: null,
         activeTopicId: null,
+        manualInputsVisible: false,
       };
 
       const selectors = {
@@ -286,6 +291,8 @@
         difficulty: document.querySelector('#difficulty'),
         statusText: document.querySelector('#status-text'),
         materialCount: document.querySelector('#material-count'),
+        manualInputs: document.querySelector('#manual-inputs'),
+        toggleInputs: document.querySelector('#toggle-inputs'),
       };
 
       const shorten = (text, limit = 120) =>
@@ -459,13 +466,23 @@
       selectors.ingestBtn.addEventListener('click', async () => {
         const title = selectors.title.value.trim();
         const text = selectors.text.value.trim();
-        if (!title || text.length < 40) {
-          renderStatus('Please add a title and at least a few sentences.');
+        if (!title && !text) {
+          renderStatus('Waiting for host content or manual notes.');
+          return;
+        }
+        if (text && text.length < 40) {
+          renderStatus('Add at least a few sentences when typing notes.');
           return;
         }
         renderStatus('Sending material…');
         await callTutorTool('ingest_material', { title, text });
         selectors.text.value = '';
+      });
+
+      selectors.toggleInputs.addEventListener('click', () => {
+        state.manualInputsVisible = !state.manualInputsVisible;
+        selectors.manualInputs.style.display = state.manualInputsVisible ? 'grid' : 'none';
+        selectors.toggleInputs.textContent = state.manualInputsVisible ? 'Hide notes' : 'Add notes';
       });
 
       selectors.topicsBtn.addEventListener('click', async () => {

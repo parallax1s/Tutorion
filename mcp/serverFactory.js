@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
@@ -13,7 +15,51 @@ export const MCP_REQUIRE_AUTH = process.env.MCP_REQUIRE_AUTH === 'true';
 export const MCP_PATH = '/mcp';
 export const RESOURCE_METADATA_PATH = '/.well-known/oauth-protected-resource';
 
-const widgetHtml = readFileSync('public/tutor-widget.html', 'utf8');
+const loadWidgetHtml = () => {
+  const defaultWidgetHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tutorion widget missing</title>
+    <style>
+      body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; }
+      main { max-width: 720px; margin: 0 auto; }
+      h1 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+      p { margin: 0; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Tutor widget unavailable</h1>
+      <p>The expected <code>public/tutor-widget.html</code> file could not be loaded. Please redeploy with the widget asset bundled.</p>
+    </main>
+  </body>
+</html>`;
+
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const candidatePaths = [
+    path.join(process.cwd(), 'public', 'tutor-widget.html'),
+    path.join(moduleDir, '..', 'public', 'tutor-widget.html'),
+  ];
+
+  for (const candidate of candidatePaths) {
+    try {
+      return readFileSync(candidate, 'utf8');
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        continue;
+      }
+      console.error(`Failed to load tutor widget from ${candidate}:`, error);
+      return defaultWidgetHtml;
+    }
+  }
+
+  console.warn('Tutor widget HTML missing; using inline fallback.');
+  return defaultWidgetHtml;
+};
+
+const widgetHtml = loadWidgetHtml();
 
 export const resourceMetadata = () => ({
   resource: MCP_RESOURCE_BASE_URL,
@@ -47,51 +93,110 @@ const configureStatefulHandlers = (server) => {
     }
   };
 
-  const deriveTopicsFromMaterial = (material) => {
-    const sentences = material.text
+  const tokenizeSentences = (text) =>
+    text
       .split(/(?<=[.!?])\s+/)
       .map((s) => s.trim())
-      .filter((s) => s.length > 20)
-      .slice(0, 4);
+      .filter((s) => s.length > 30);
 
-    if (!sentences.length) {
+  const extractMathSignals = (sentences) => {
+    const mathKeywords = [
+      'markov',
+      'transition',
+      'probability',
+      'rate',
+      'matrix',
+      'generator',
+      'master equation',
+      'steady state',
+      'stationary',
+      'chain',
+      'state space',
+      'stochastic',
+      'derivative',
+      'differential',
+      'ode',
+      'expectation',
+      'variance',
+      'drift',
+    ];
+
+    const formulaRegex = /[=∝≈]|\\(frac|sum|int|partial|nabla|pi|lambda|mu|sigma|theta)/i;
+
+    return sentences
+      .map((sentence, index) => {
+        const lower = sentence.toLowerCase();
+        const keywordScore = mathKeywords.reduce(
+          (score, keyword) => (lower.includes(keyword) ? score + 1 : score),
+          0,
+        );
+        const hasFormula = formulaRegex.test(sentence);
+        const score = keywordScore * 2 + (hasFormula ? 3 : 0) + Math.max(0, 2 - index);
+        return { sentence, keywordScore, hasFormula, score };
+      })
+      .filter((entry) => entry.keywordScore > 0 || entry.hasFormula)
+      .sort((a, b) => b.score - a.score);
+  };
+
+  const deriveTopicsFromMaterial = (material) => {
+    const sentences = tokenizeSentences(material.text);
+    const ranked = extractMathSignals(sentences);
+    const chosen = ranked.length ? ranked.slice(0, 4) : sentences.slice(0, 3).map((sentence) => ({ sentence }));
+
+    if (!chosen.length) {
       return [
         {
           id: `topic-${nextId++}`,
           title: `${material.title} overview`,
           rationale: 'High-level summary of the uploaded material.',
           sourceTitle: material.title,
+          highlights: [],
         },
       ];
     }
 
-    return sentences.map((sentence, index) => ({
+    return chosen.map((entry, index) => ({
       id: `topic-${nextId++}`,
       title: `${material.title} – Concept ${index + 1}`,
-      rationale: sentence,
+      rationale: entry.sentence ?? 'Core step from the material.',
       sourceTitle: material.title,
+      highlights: sentences.slice(index, index + 2),
+      hasFormula: Boolean(entry.hasFormula),
     }));
   };
 
   const buildQuizForTopic = (topic, difficulty) => {
-    const prompts = [
-      `Explain the first principle behind ${topic.title}.`,
-      `Show a worked example related to ${topic.title}.`,
-      `How does ${topic.title} connect to a prerequisite concept?`,
+    const fallback = 'Summarize the governing idea and show how it applies to a concrete step.';
+    const rationale = topic.rationale || fallback;
+    const highlight = topic.highlights?.[0] || fallback;
+
+    const questions = [
+      {
+        id: `q-${topic.id}-concept`,
+        prompt: `State the core idea of “${topic.title}” in your own words. Why does it matter?`,
+        answer: rationale,
+        difficulty,
+      },
+      {
+        id: `q-${topic.id}-equation`,
+        prompt: topic.hasFormula
+          ? 'Write the key equation or transition rule and explain each term.'
+          : 'Describe the update rule or probability flow that defines the process.',
+        answer: topic.hasFormula
+          ? `Use the expression mentioned in the notes: ${highlight}`
+          : highlight,
+        difficulty,
+      },
+      {
+        id: `q-${topic.id}-link`,
+        prompt:
+          'Connect this topic to a prerequisite (e.g., Markov property, normalization, or steady-state condition).',
+        answer: 'Relate the transition probabilities to conservation of probability and the Markov memoryless property.',
+        difficulty,
+      },
     ];
 
-    return {
-      topicId: topic.id,
-      questions: prompts.map((prompt, index) => ({
-        id: `q-${nextId++}`,
-        prompt,
-        answer:
-          index === 1
-            ? 'Start from the given definition and solve step-by-step to the final expression.'
-            : 'Highlight assumptions and the key step that changes the outcome.',
-        difficulty,
-      })),
-    };
+    return { topicId: topic.id, difficulty, questions };
   };
 
   const structuredState = (message) => ({
@@ -119,14 +224,15 @@ const configureStatefulHandlers = (server) => {
       },
     },
     async (args) => {
-      const title = args?.title?.trim?.() ?? '';
+      const titleInput = args?.title?.trim?.() ?? '';
       const text = args?.text?.trim?.() ?? '';
-      if (!title || !text) {
+      if (!text) {
         return {
-          content: [{ type: 'text', text: 'Missing title or text.' }],
-          structuredContent: structuredState('Missing inputs'),
+          content: [{ type: 'text', text: 'Missing text. Provide notes or ask ChatGPT to pass the PDF extract.' }],
+          structuredContent: structuredState('Missing text input'),
         };
       }
+      const title = titleInput || `Material ${materials.length + 1}`;
       const material = { id: `material-${nextId++}`, title, text, characters: text.length };
       materials = [...materials, material];
       return {
